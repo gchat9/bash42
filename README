@@ -1,3 +1,23 @@
+Dietlibc port
+=============
+
+This is an attempt to port bash to compile and run under fefe's
+dietlibc. Resulting binary is static and slightly smaller on-disk
+compared to regular glibc build.
+
+In-memory footprint is significantly smaller too.
+
+Comiple with:
+
+  ./configure CC="diet gcc"
+  make
+  strip ./bash # optional
+
+There are some rough edges. Proceed with caution. Contributions
+are welcome.
+
+Original bash read-me follows:
+
 Introduction
 ============
 

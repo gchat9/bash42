@@ -54,7 +54,7 @@ char *alloca ();
 #endif
 
 #include <errno.h>
-#ifndef errno
+#if !defined (errno) && !defined (HAVE_ERRNO_H)
 extern int errno;
 #endif
 #ifndef __set_errno
@@ -160,6 +160,7 @@ char *getcwd ();
 static char *stpcpy PARAMS ((char *dest, const char *src));
 # endif
 # ifndef HAVE_MEMPCPY
+#  define mempcpy bashintl_mempcpy
 static void *mempcpy PARAMS ((void *dest, const void *src, size_t n));
 # endif
 #endif

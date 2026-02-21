@@ -76,6 +76,9 @@ static char *find_codeset PARAMS((char *, size_t *));
 #endif /* !HAVE_SETLOCALE */
 
 static char *_rl_get_locale_var PARAMS((const char *));
+static int _rl_locale_is_utf8 PARAMS((char *));
+
+int _rl_utf8locale = 0;
 
 static char *
 _rl_get_locale_var (v)
@@ -85,11 +88,50 @@ _rl_get_locale_var (v)
 
   lspec = sh_get_env_value ("LC_ALL");
   if (lspec == 0 || *lspec == 0)
+    lspec = getenv ("LC_ALL");
+  if (lspec == 0 || *lspec == 0)
     lspec = sh_get_env_value (v);
   if (lspec == 0 || *lspec == 0)
+    lspec = getenv (v);
+  if (lspec == 0 || *lspec == 0)
     lspec = sh_get_env_value ("LANG");
+  if (lspec == 0 || *lspec == 0)
+    lspec = getenv ("LANG");
 
   return lspec;
+}
+
+static int
+_rl_locale_is_utf8 (lspec)
+     char *lspec;
+{
+  char *cp, *encoding;
+
+  if (lspec == 0 || *lspec == 0)
+    return 0;
+
+  for (cp = lspec; *cp && *cp != '.' && *cp != '@' && *cp != '+' && *cp != ','; cp++)
+    ;
+  if (*cp != '.')
+    return 0;
+
+  for (encoding = ++cp; *cp && *cp != '@' && *cp != '+' && *cp != ','; cp++)
+    ;
+
+  if ((cp - encoding == 5 &&
+       (encoding[0] == 'U' || encoding[0] == 'u') &&
+       (encoding[1] == 'T' || encoding[1] == 't') &&
+       (encoding[2] == 'F' || encoding[2] == 'f') &&
+       encoding[3] == '-' &&
+       encoding[4] == '8') ||
+      (cp - encoding == 4 &&
+       (encoding[0] == 'U' || encoding[0] == 'u') &&
+       (encoding[1] == 'T' || encoding[1] == 't') &&
+       (encoding[2] == 'F' || encoding[2] == 'f') &&
+       encoding[3] == '8'))
+    return 1;
+
+  return 0;
 }
   
 /* Check for LC_ALL, LC_CTYPE, and LANG and use the first with a value
@@ -102,6 +144,7 @@ _rl_init_eightbit ()
    value, and go into eight-bit mode if it's not C or POSIX. */
 #if defined (HAVE_SETLOCALE)
   char *lspec, *t;
+  int utf8env, utf8loc;
 
   /* Set the LC_CTYPE locale category from environment variables. */
   lspec = _rl_get_locale_var ("LC_CTYPE");
@@ -115,8 +158,11 @@ _rl_init_eightbit ()
   if (lspec == 0)
     lspec = "";
   t = setlocale (LC_CTYPE, lspec);
+  utf8env = _rl_locale_is_utf8 (lspec);
+  utf8loc = _rl_locale_is_utf8 (t);
+  _rl_utf8locale = utf8env || utf8loc;
 
-  if (t && *t && (t[0] != 'C' || t[1]) && (STREQ (t, "POSIX") == 0))
+  if (_rl_utf8locale || (t && *t && (t[0] != 'C' || t[1]) && (STREQ (t, "POSIX") == 0)))
     {
       _rl_meta_flag = 1;
       _rl_convert_meta_chars_to_ascii = 0;
@@ -134,6 +180,14 @@ _rl_init_eightbit ()
      appropriate variables and set eight-bit mode if they have the right
      values. */
   lspec = _rl_get_locale_var ("LC_CTYPE");
+  _rl_utf8locale = _rl_locale_is_utf8 (lspec);
+  if (_rl_utf8locale)
+    {
+      _rl_meta_flag = 1;
+      _rl_convert_meta_chars_to_ascii = 0;
+      _rl_output_meta_chars = 1;
+      return 1;
+    }
 
   if (lspec == 0 || (t = normalize_codeset (lspec)) == 0)
     return (0);
@@ -209,7 +263,7 @@ find_codeset (name, lenp)
   cp = language = name;
   result = (char *)0;
 
-  while (*cp && *cp != '_' && *cp != '@' && *cp != '+' && *cp != ',')
+  while (*cp && *cp != '_' && *cp != '.' && *cp != '@' && *cp != '+' && *cp != ',')
     cp++;
 
   /* This does not make sense: language has to be specified.  As

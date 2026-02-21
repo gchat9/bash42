@@ -1010,7 +1010,7 @@ _nl_load_domain (domain_file, domainbinding)
       /* The magic number is wrong: not a message catalog file.  */
 #ifdef HAVE_MMAP
       if (use_mmap)
-	munmap ((caddr_t) data, size);
+	munmap ((void *) data, size);
       else
 #endif
 	free (data);
@@ -1279,7 +1279,7 @@ _nl_load_domain (domain_file, domainbinding)
 	free (domain->malloced);
 #ifdef HAVE_MMAP
       if (use_mmap)
-	munmap ((caddr_t) data, size);
+	munmap ((void *) data, size);
       else
 #endif
 	free (data);

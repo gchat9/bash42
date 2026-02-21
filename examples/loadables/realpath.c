@@ -54,7 +54,7 @@
 #include "bashgetopt.h"
 #include "common.h"
 
-#ifndef errno
+#if !defined (errno) && !defined (HAVE_ERRNO_H)
 extern int	errno;
 #endif
 

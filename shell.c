@@ -87,7 +87,7 @@
 extern struct passwd *getpwuid ();
 #endif /* !HAVE_GETPW_DECLS */
 
-#if !defined (errno)
+#if !defined (errno) && !defined (HAVE_ERRNO_H)
 extern int errno;
 #endif
 

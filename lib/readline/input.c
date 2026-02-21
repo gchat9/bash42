@@ -54,7 +54,7 @@
 #include <stdio.h>
 #include <errno.h>
 
-#if !defined (errno)
+#if !defined (errno) && !defined (HAVE_ERRNO_H)
 extern int errno;
 #endif /* !errno */
 
@@ -544,7 +544,10 @@ _rl_read_mbchar (mbchar, size)
 
       mbchar[mb_len++] = c;
 
-      mbchar_bytes_length = mbrtowc (&wc, mbchar, mb_len, &ps);
+      if (_rl_utf8locale)
+	mbchar_bytes_length = (size_t)utf8_mblen (mbchar, mb_len);
+      else
+	mbchar_bytes_length = mbrtowc (&wc, mbchar, mb_len, &ps);
       if (mbchar_bytes_length == (size_t)(-1))
 	break;		/* invalid byte sequence for the current locale */
       else if (mbchar_bytes_length == (size_t)(-2))

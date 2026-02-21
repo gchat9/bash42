@@ -578,17 +578,10 @@ buildversion.o: version.h conftypes.h patchlevel.h $(srcdir)/version.c
 	$(CC_FOR_BUILD) $(CCFLAGS_FOR_BUILD) -DBUILDTOOL -c -o $@ $(srcdir)/version.c
 
 # old rules
-GRAM_H = parser-built
+GRAM_H = y.tab.h
 y.tab.o: y.tab.c ${GRAM_H} command.h ${BASHINCDIR}/stdc.h input.h
-${GRAM_H}:	y.tab.h
-	@-if test -f y.tab.h ; then \
-		cmp -s $@ y.tab.h 2>/dev/null || cp -p y.tab.h $@; \
-	fi
 y.tab.c y.tab.h: parse.y
-#	-if test -f y.tab.h; then mv -f y.tab.h old-y.tab.h; fi
-	$(YACC) -d $(srcdir)/parse.y
-	touch parser-built
-#	-if cmp -s old-y.tab.h y.tab.h; then mv old-y.tab.h y.tab.h; else cp -p y.tab.h ${GRAM_H}; fi
+	@true
 
 # experimental new rules - work with GNU make but not BSD (or OSF) make
 #y.tab.o: y.tab.c y.tab.h
@@ -810,7 +803,7 @@ distclean:	basic-clean maybe-clean
 maintainer-clean:	basic-clean
 	@echo This command is intended for maintainers to use.
 	@echo It deletes files that may require special tools to rebuild.
-	$(RM) y.tab.c y.tab.h parser-built tags TAGS
+	$(RM) parser-built tags TAGS
 	( cd $(DOCDIR) && $(MAKE) $(MFLAGS) $@ )
 	( cd builtins && $(MAKE) $(MFLAGS) $@ )
 	( cd $(SDIR) && $(MAKE) $(MFLAGS) $@ )
@@ -822,8 +815,8 @@ maintainer-clean:	basic-clean
 	$(RM) $(CREATED_SUPPORT) Makefile pathnames.h
 
 maybe-clean:
-	-if test "X$(topdir)" != "X$(BUILD_DIR)" ; then \
-		$(RM) parser-built y.tab.c y.tab.h ; \
+	@if test "X$(topdir)" != "X$(BUILD_DIR)" ; then \
+		$(RM) parser-built ; \
 	fi
 
 recho$(EXEEXT):		$(SUPPORT_SRC)recho.c

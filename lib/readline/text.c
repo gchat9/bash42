@@ -58,6 +58,10 @@
 #include "rlshell.h"
 #include "xmalloc.h"
 
+#if defined (HANDLE_MULTIBYTE)
+extern int utf8_mblen (const char *, size_t);
+#endif
+
 /* Forward declarations. */
 static int rl_change_case PARAMS((int, int));
 static int _rl_char_search PARAMS((int, int, int));
@@ -70,6 +74,76 @@ static int _rl_char_search_callback PARAMS((_rl_callback_generic_arg *));
 /* The largest chunk of text that can be inserted in one call to
    rl_insert_text.  Text blocks larger than this are divided. */
 #define TEXT_COUNT_MAX	1024
+
+#if defined (HANDLE_MULTIBYTE)
+static int
+_rl_utf8_prev_char_start (buf, point)
+     const char *buf;
+     int point;
+{
+  unsigned char b;
+  int i, start, need;
+
+  if (point <= 0)
+    return 0;
+  start = point - 1;
+  b = (unsigned char)buf[start];
+  if ((b & 0x80) == 0)
+    return start;
+
+  while (start > 0 && (((unsigned char)buf[start]) & 0xC0) == 0x80)
+    start--;
+
+  b = (unsigned char)buf[start];
+  if (b >= 0xC2 && b <= 0xDF)
+    need = 2;
+  else if (b >= 0xE0 && b <= 0xEF)
+    need = 3;
+  else if (b >= 0xF0 && b <= 0xF4)
+    need = 4;
+  else
+    return point - 1;
+
+  if (start + need != point)
+    return point - 1;
+  for (i = start + 1; i < point; i++)
+    if ((((unsigned char)buf[i]) & 0xC0) != 0x80)
+      return point - 1;
+
+  return start;
+}
+
+static int
+_rl_utf8_next_char_end (buf, point, end)
+     const char *buf;
+     int point, end;
+{
+  unsigned char b;
+  int i, need;
+
+  if (point >= end)
+    return end;
+  b = (unsigned char)buf[point];
+  if ((b & 0x80) == 0)
+    return point + 1;
+  if (b >= 0xC2 && b <= 0xDF)
+    need = 2;
+  else if (b >= 0xE0 && b <= 0xEF)
+    need = 3;
+  else if (b >= 0xF0 && b <= 0xF4)
+    need = 4;
+  else
+    return point + 1;
+
+  if (point + need > end)
+    return point + 1;
+  for (i = point + 1; i < point + need; i++)
+    if ((((unsigned char)buf[i]) & 0xC0) != 0x80)
+      return point + 1;
+
+  return point + need;
+}
+#endif
 
 /* **************************************************************** */
 /*								    */
@@ -322,7 +396,7 @@ rl_forward_char (count, key)
 {
   int point;
 
-  if (MB_CUR_MAX == 1 || rl_byte_oriented)
+  if (RL_MBCHARS_ENABLED == 0)
     return (rl_forward_byte (count, key));
 
   if (count < 0)
@@ -336,7 +410,14 @@ rl_forward_char (count, key)
 	  return 0;
 	}
 
-      point = _rl_forward_char_internal (count);
+      if (_rl_utf8locale)
+	{
+	  point = rl_point;
+	  while (count-- > 0 && point < rl_end)
+	    point = _rl_utf8_next_char_end (rl_line_buffer, point, rl_end);
+	}
+      else
+	point = _rl_forward_char_internal (count);
 
       if (rl_point == point)
 	rl_ding ();
@@ -396,7 +477,7 @@ rl_backward_char (count, key)
 {
   int point;
 
-  if (MB_CUR_MAX == 1 || rl_byte_oriented)
+  if (RL_MBCHARS_ENABLED == 0)
     return (rl_backward_byte (count, key));
 
   if (count < 0)
@@ -408,7 +489,10 @@ rl_backward_char (count, key)
 
       while (count > 0 && point > 0)
 	{
-	  point = _rl_find_prev_mbchar (rl_line_buffer, point, MB_FIND_NONZERO);
+	  if (_rl_utf8locale)
+	    point = _rl_utf8_prev_char_start (rl_line_buffer, point);
+	  else
+	    point = _rl_find_prev_mbchar (rl_line_buffer, point, MB_FIND_NONZERO);
 	  count--;
 	}
       if (count > 0)
@@ -632,14 +716,14 @@ rl_arrow_keys (count, c)
       break;
 
     case 'C':
-      if (MB_CUR_MAX > 1 && rl_byte_oriented == 0)
+      if (RL_MBCHARS_ENABLED)
 	rl_forward_char (count, ch);
       else
 	rl_forward_byte (count, ch);
       break;
 
     case 'D':
-      if (MB_CUR_MAX > 1 && rl_byte_oriented == 0)
+      if (RL_MBCHARS_ENABLED)
 	rl_backward_char (count, ch);
       else
 	rl_backward_byte (count, ch);
@@ -685,7 +769,7 @@ _rl_insert_char (count, c)
     return 0;
 
 #if defined (HANDLE_MULTIBYTE)
-  if (MB_CUR_MAX == 1 || rl_byte_oriented)
+  if (RL_MBCHARS_ENABLED == 0)
     {
       incoming[0] = c;
       incoming[1] = '\0';
@@ -703,7 +787,10 @@ _rl_insert_char (count, c)
 
       ps_back = ps;
       pending_bytes[pending_bytes_length++] = c;
-      ret = mbrtowc (&wc, pending_bytes, pending_bytes_length, &ps);
+      if (_rl_utf8locale)
+	ret = (size_t)utf8_mblen (pending_bytes, pending_bytes_length);
+      else
+	ret = mbrtowc (&wc, pending_bytes, pending_bytes_length, &ps);
 
       if (ret == (size_t)-2)
 	{
@@ -738,10 +825,12 @@ _rl_insert_char (count, c)
       else
 	{
 	  /* We successfully read a single multibyte character. */
-	  memcpy (incoming, pending_bytes, pending_bytes_length);
-	  incoming[pending_bytes_length] = '\0';
-	  incoming_length = pending_bytes_length;
-	  pending_bytes_length = 0;
+	  incoming_length = (int)ret;
+	  memcpy (incoming, pending_bytes, incoming_length);
+	  incoming[incoming_length] = '\0';
+	  pending_bytes_length -= incoming_length;
+	  if (pending_bytes_length > 0)
+	    memmove (pending_bytes, pending_bytes + incoming_length, pending_bytes_length);
 	}
     }
 #endif /* HANDLE_MULTIBYTE */
@@ -819,7 +908,7 @@ _rl_insert_char (count, c)
       return 0;
     }
 
-  if (MB_CUR_MAX == 1 || rl_byte_oriented)
+  if (RL_MBCHARS_ENABLED == 0)
     {
       /* We are inserting a single character.
 	 If there is pending input, then make a string of all of the
@@ -862,7 +951,7 @@ _rl_overwrite_char (count, c)
   int k;
 
   /* Read an entire multibyte character sequence to insert COUNT times. */
-  if (count > 0 && MB_CUR_MAX > 1 && rl_byte_oriented == 0)
+  if (count > 0 && RL_MBCHARS_ENABLED)
     k = _rl_read_mbstring (c, mbkey, MB_LEN_MAX);
 #endif
 
@@ -871,7 +960,7 @@ _rl_overwrite_char (count, c)
   for (i = 0; i < count; i++)
     {
 #if defined (HANDLE_MULTIBYTE)
-      if (MB_CUR_MAX > 1 && rl_byte_oriented == 0)
+      if (RL_MBCHARS_ENABLED)
 	rl_insert_text (mbkey);
       else
 #endif
@@ -1095,7 +1184,7 @@ _rl_rubout_char (count, key)
       rl_backward_char (count, key);
       rl_kill_text (orig_point, rl_point);
     }
-  else if (MB_CUR_MAX == 1 || rl_byte_oriented)
+  else if (RL_MBCHARS_ENABLED == 0)
     {
       c = rl_line_buffer[--rl_point];
       rl_delete_text (rl_point, orig_point);
@@ -1109,7 +1198,10 @@ _rl_rubout_char (count, key)
     }
   else
     {
-      rl_point = _rl_find_prev_mbchar (rl_line_buffer, rl_point, MB_FIND_NONZERO);
+      if (_rl_utf8locale)
+	rl_point = _rl_utf8_prev_char_start (rl_line_buffer, rl_point);
+      else
+	rl_point = _rl_find_prev_mbchar (rl_line_buffer, rl_point, MB_FIND_NONZERO);
       rl_delete_text (rl_point, orig_point);
     }
 
@@ -1136,7 +1228,12 @@ rl_delete (count, key)
   if (count > 1 || rl_explicit_arg)
     {
       xpoint = rl_point;
-      if (MB_CUR_MAX > 1 && rl_byte_oriented == 0)
+      if (_rl_utf8locale)
+	{
+	  while (count-- > 0 && rl_point < rl_end)
+	    rl_point = _rl_utf8_next_char_end (rl_line_buffer, rl_point, rl_end);
+	}
+      else if (RL_MBCHARS_ENABLED)
 	rl_forward_char (count, key);
       else
 	rl_forward_byte (count, key);
@@ -1146,7 +1243,10 @@ rl_delete (count, key)
     }
   else
     {
-      xpoint = MB_NEXTCHAR (rl_line_buffer, rl_point, 1, MB_FIND_NONZERO);
+      if (_rl_utf8locale)
+	xpoint = _rl_utf8_next_char_end (rl_line_buffer, rl_point, rl_end);
+      else
+	xpoint = MB_NEXTCHAR (rl_line_buffer, rl_point, 1, MB_FIND_NONZERO);
       rl_delete_text (rl_point, xpoint);
     }
   return 0;
@@ -1334,7 +1434,7 @@ rl_change_case (count, op)
 	}
       else
 	nop = op;
-      if (MB_CUR_MAX == 1 || rl_byte_oriented || isascii (c))
+      if (RL_MBCHARS_ENABLED == 0 || isascii (c))
 	{
 	  nc = (nop == UpCase) ? _rl_to_upper (c) : _rl_to_lower (c);
 	  rl_line_buffer[start] = nc;

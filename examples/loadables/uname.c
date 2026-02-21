@@ -55,7 +55,7 @@ struct utsname {
 
 #define FLAG_ALL	0x1f
 
-#ifndef errno
+#if !defined (errno) && !defined (HAVE_ERRNO_H)
 extern int errno;
 #endif
 

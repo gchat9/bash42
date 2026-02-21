@@ -65,7 +65,7 @@ static const char sccsid[] = "@(#)cut.c	8.3 (Berkeley) 5/4/95";
 #include "bashgetopt.h"
 #include "common.h"
 
-#if !defined (errno)
+#if !defined (errno) && !defined (HAVE_ERRNO_H)
 extern int	errno;
 #endif
 

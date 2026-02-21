@@ -31,7 +31,7 @@
 #include <errno.h>
 #include <shell.h>
 
-#ifndef errno
+#if !defined (errno) && !defined (HAVE_ERRNO_H)
 extern int errno;
 #endif
 
@@ -115,7 +115,7 @@ putenv (str)
       return -1;
     }
 
-  offset = assignment (str, 0);
+  offset = assignment ((char *)str, 0);
   if (str[offset] != '=')
     {
       errno = EINVAL;

@@ -59,7 +59,7 @@
 /* Return the fd from which we are actually getting input. */
 #define input_tty() (shell_tty != -1) ? shell_tty : fileno (stderr)
 
-#if !defined (errno)
+#if !defined (errno) && !defined (HAVE_ERRNO_H)
 extern int errno;
 #endif /* !errno */
 

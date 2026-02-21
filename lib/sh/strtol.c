@@ -25,7 +25,7 @@
 #include <chartypes.h>
 #include <errno.h>
 
-#ifndef errno
+#if !defined (errno) && !defined (HAVE_ERRNO_H)
 extern int errno;
 #endif
 

@@ -54,7 +54,17 @@
 #include "common.h"
 #include "builtext.h"
 
-#if !defined (errno)
+#if defined (__dietlibc__)
+/* Some bison/yacc combinations used with old bash sources omit this helper
+   from y.tab.c; provide a harmless fallback to satisfy linking. */
+char *
+parser_remaining_input ()
+{
+  return (char *)0;
+}
+#endif
+
+#if !defined (errno) && !defined (HAVE_ERRNO_H)
 extern int errno;
 #endif
 

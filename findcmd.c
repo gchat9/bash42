@@ -44,7 +44,7 @@
 #include "hashcmd.h"
 #include "findcmd.h"	/* matching prototypes and declarations */
 
-#if !defined (errno)
+#if !defined (errno) && !defined (HAVE_ERRNO_H)
 extern int errno;
 #endif
 

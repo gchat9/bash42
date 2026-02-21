@@ -32,7 +32,7 @@
 #include "command.h"
 #include "general.h"
 
-#if !defined (errno)
+#if !defined (errno) && !defined (HAVE_ERRNO_H)
 extern int errno;
 #endif
 

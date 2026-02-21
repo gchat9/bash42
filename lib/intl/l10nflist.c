@@ -32,7 +32,7 @@
 
 #include <string.h>
 
-#if defined _LIBC || defined HAVE_ARGZ_H
+#if (defined _LIBC || defined HAVE_ARGZ_H) && !defined (__dietlibc__)
 # include <argz.h>
 #endif
 #include <ctype.h>

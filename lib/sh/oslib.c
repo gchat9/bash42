@@ -44,10 +44,13 @@
 #include <stdio.h>
 #include <errno.h>
 #include <chartypes.h>
+#if defined (__dietlibc__)
+#  include <wchar.h>
+#endif
 
 #include <shell.h>
 
-#if !defined (errno)
+#if !defined (errno) && !defined (HAVE_ERRNO_H)
 extern int errno;
 #endif /* !errno */
 
@@ -299,3 +302,42 @@ getmaxchild ()
 
   return (maxchild);
 }
+
+#if defined (__dietlibc__)
+char *
+getwd (char *buf)
+{
+  size_t size;
+
+  if (buf == 0)
+    {
+      errno = EINVAL;
+      return (char *)0;
+    }
+
+#if defined (PATH_MAX)
+  size = PATH_MAX;
+#else
+  size = 4096;
+#endif
+  return getcwd (buf, size);
+}
+
+wchar_t *
+wmemchr (const wchar_t *s, wchar_t c, size_t n)
+{
+  while (n--)
+    {
+      if (*s == c)
+	return (wchar_t *)s;
+      s++;
+    }
+  return (wchar_t *)0;
+}
+
+int
+wctob (wint_t wc)
+{
+  return (wc >= 0 && wc <= UCHAR_MAX) ? (int)wc : EOF;
+}
+#endif

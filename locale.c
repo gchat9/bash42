@@ -35,7 +35,7 @@
 #include "shell.h"
 #include "input.h"	/* For bash_input */
 
-#ifndef errno
+#if !defined (errno) && !defined (HAVE_ERRNO_H)
 extern int errno;
 #endif
 
@@ -188,10 +188,12 @@ set_locale_var (var, value)
       r = *lc_all ? ((x = setlocale (LC_ALL, lc_all)) != 0) : reset_locale_vars ();
       if (x == 0)
 	{
+#if !defined (__dietlibc__)
 	  if (errno == 0)
 	    internal_warning(_("setlocale: LC_ALL: cannot change locale (%s)"), lc_all);
 	  else
 	    internal_warning(_("setlocale: LC_ALL: cannot change locale (%s): %s"), lc_all, strerror (errno));
+#endif
 	}
       locale_setblanks ();
       return r;
@@ -243,10 +245,12 @@ set_locale_var (var, value)
   
   if (x == 0)
     {
+#if !defined (__dietlibc__)
       if (errno == 0)
 	internal_warning(_("setlocale: %s: cannot change locale (%s)"), var, get_locale_var (var));
       else
 	internal_warning(_("setlocale: %s: cannot change locale (%s): %s"), var, get_locale_var (var), strerror (errno));
+#endif
     }
 
   return (x != 0);

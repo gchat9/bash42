@@ -94,6 +94,99 @@ static int line_structures_initialized = 0;
 #define invisible_line	(line_state_invisible->line)
 
 #if defined (HANDLE_MULTIBYTE)
+static size_t
+_rl_disp_mbrtowc (wc, s, n, ps)
+     wchar_t *wc;
+     const char *s;
+     size_t n;
+     mbstate_t *ps;
+{
+  unsigned char c, c1, c2, c3;
+  unsigned int uc;
+  int len;
+
+  if (_rl_utf8locale == 0)
+    return mbrtowc (wc, s, n, ps);
+  if (s == 0)
+    return 0;
+  if (n == 0)
+    return (size_t)-1;
+
+  c = (unsigned char)s[0];
+  if (c == 0)
+    return 0;
+  if (c < 0x80)
+    {
+      if (wc)
+	*wc = (wchar_t)c;
+      if (ps)
+	memset (ps, 0, sizeof (mbstate_t));
+      return 1;
+    }
+  if (c < 0xC2)
+    return (size_t)-1;
+
+  if (c < 0xE0)
+    {
+      if (n < 2)
+	return (size_t)-2;
+      c1 = (unsigned char)s[1];
+      if ((c1 & 0xC0) != 0x80)
+	return (size_t)-1;
+      uc = ((unsigned int)(c & 0x1F) << 6) | (unsigned int)(c1 & 0x3F);
+      len = 2;
+    }
+  else if (c < 0xF0)
+    {
+      if (n < 3)
+	return (size_t)-2;
+      c1 = (unsigned char)s[1];
+      c2 = (unsigned char)s[2];
+      if ((c1 & 0xC0) != 0x80 || (c2 & 0xC0) != 0x80)
+	return (size_t)-1;
+      if ((c == 0xE0 && c1 < 0xA0) || (c == 0xED && c1 >= 0xA0))
+	return (size_t)-1;
+      uc = ((unsigned int)(c & 0x0F) << 12) |
+	   ((unsigned int)(c1 & 0x3F) << 6) |
+	   (unsigned int)(c2 & 0x3F);
+      len = 3;
+    }
+  else if (c < 0xF5)
+    {
+      if (n < 4)
+	return (size_t)-2;
+      c1 = (unsigned char)s[1];
+      c2 = (unsigned char)s[2];
+      c3 = (unsigned char)s[3];
+      if ((c1 & 0xC0) != 0x80 || (c2 & 0xC0) != 0x80 || (c3 & 0xC0) != 0x80)
+	return (size_t)-1;
+      if ((c == 0xF0 && c1 < 0x90) || (c == 0xF4 && c1 >= 0x90))
+	return (size_t)-1;
+      uc = ((unsigned int)(c & 0x07) << 18) |
+	   ((unsigned int)(c1 & 0x3F) << 12) |
+	   ((unsigned int)(c2 & 0x3F) << 6) |
+	   (unsigned int)(c3 & 0x3F);
+      len = 4;
+    }
+  else
+    return (size_t)-1;
+
+  if (wc)
+    *wc = (wchar_t)uc;
+  if (ps)
+    memset (ps, 0, sizeof (mbstate_t));
+  return (size_t)len;
+}
+
+static size_t
+_rl_disp_mbrlen (s, n, ps)
+     const char *s;
+     size_t n;
+     mbstate_t *ps;
+{
+  return _rl_disp_mbrtowc ((wchar_t *)0, s, n, ps);
+}
+
 static int _rl_col_width PARAMS((const char *, int, int, int));
 #else
 #  define _rl_col_width(l, s, e, f)	(((e) <= (s)) ? 0 : (e) - (s))
@@ -734,7 +827,7 @@ rl_redisplay ()
     {
       memset (&ps, 0, sizeof (mbstate_t));
       /* XXX - what if wc_bytes ends up <= 0? check for MB_INVALIDCH */
-      wc_bytes = mbrtowc (&wc, rl_line_buffer, rl_end, &ps);
+      wc_bytes = _rl_disp_mbrtowc (&wc, rl_line_buffer, rl_end, &ps);
     }
   else
     wc_bytes = 1;
@@ -895,7 +988,7 @@ rl_redisplay ()
 	{
 	  in += wc_bytes;
 	  /* XXX - what if wc_bytes ends up <= 0? check for MB_INVALIDCH */
-	  wc_bytes = mbrtowc (&wc, rl_line_buffer + in, rl_end - in, &ps);
+	  wc_bytes = _rl_disp_mbrtowc (&wc, rl_line_buffer + in, rl_end - in, &ps);
 	}
       else
         in++;
@@ -1306,7 +1399,7 @@ update_line (old, new, current_line, omax, nmax, inv_botlin)
 	    _rl_clear_to_eol (line_state_visible->wrapped_line[current_line]);
 
 	  memset (&ps, 0, sizeof (mbstate_t));
-	  ret = mbrtowc (&wc, new, MB_CUR_MAX, &ps);
+	  ret = _rl_disp_mbrtowc (&wc, new, MB_CUR_MAX, &ps);
 	  if (MB_INVALIDCH (ret))
 	    {
 	      tempwidth = 1;
@@ -1326,7 +1419,7 @@ update_line (old, new, current_line, omax, nmax, inv_botlin)
 	      _rl_last_c_pos = tempwidth;
 	      _rl_last_v_pos++;
 	      memset (&ps, 0, sizeof (mbstate_t));
-	      ret = mbrtowc (&wc, old, MB_CUR_MAX, &ps);
+	      ret = _rl_disp_mbrtowc (&wc, old, MB_CUR_MAX, &ps);
 	      if (ret != 0 && bytes != 0)
 		{
 		  if (MB_INVALIDCH (ret))
@@ -2625,7 +2718,7 @@ _rl_ttymsg ("_rl_col_width: called with MB_CUR_MAX == 1");
 
   while (point < start)
     {
-      tmp = mbrlen (str + point, max, &ps);
+      tmp = _rl_disp_mbrlen (str + point, max, &ps);
       if (MB_INVALIDCH ((size_t)tmp))
 	{
 	  /* In this case, the bytes are invalid or too short to compose a
@@ -2654,7 +2747,7 @@ _rl_ttymsg ("_rl_col_width: called with MB_CUR_MAX == 1");
 
   while (point < end)
     {
-      tmp = mbrtowc (&wc, str + point, max, &ps);
+      tmp = _rl_disp_mbrtowc (&wc, str + point, max, &ps);
       if (MB_INVALIDCH ((size_t)tmp))
 	{
 	  /* In this case, the bytes are invalid or too short to compose a

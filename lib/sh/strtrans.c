@@ -27,6 +27,7 @@
 #include <bashansi.h>
 #include <stdio.h>
 #include <chartypes.h>
+#include <string.h>
 
 #include "shell.h"
 
@@ -34,6 +35,97 @@
 #undef ESC
 #endif
 #define ESC '\033'	/* ASCII */
+
+#if defined (HANDLE_MULTIBYTE)
+static int
+st_is_utf8_locale (void)
+{
+  const char *loc;
+  const char *dot;
+
+  loc = getenv ("LC_ALL");
+  if (loc == 0 || *loc == 0)
+    loc = getenv ("LC_CTYPE");
+  if (loc == 0 || *loc == 0)
+    loc = getenv ("LANG");
+  if (loc == 0 || *loc == 0)
+    return 0;
+
+  if (STREQ (loc, "UTF-8") || STREQ (loc, "utf8"))
+    return 1;
+
+  dot = strrchr (loc, '.');
+  if (dot && dot[1])
+    {
+      dot++;
+      if ((dot[0] == 'U' || dot[0] == 'u') &&
+	  (dot[1] == 'T' || dot[1] == 't') &&
+	  (dot[2] == 'F' || dot[2] == 'f') &&
+	  dot[3] == '-' &&
+	  dot[4] == '8' &&
+	  dot[5] == '\0')
+	return 1;
+      if ((dot[0] == 'U' || dot[0] == 'u') &&
+	  (dot[1] == 'T' || dot[1] == 't') &&
+	  (dot[2] == 'F' || dot[2] == 'f') &&
+	  dot[3] == '8' &&
+	  dot[4] == '\0')
+	return 1;
+    }
+
+  return 0;
+}
+
+static int
+st_utf8_mblen (s, n)
+     const char *s;
+     size_t n;
+{
+  unsigned char c, c1, c2, c3;
+
+  if (s == 0 || n == 0)
+    return -1;
+
+  c = (unsigned char)s[0];
+  if (c < 0x80)
+    return 1;
+  if (c < 0xC2)
+    return -1;
+  if (c < 0xE0)
+    {
+      if (n < 2)
+	return -2;
+      c1 = (unsigned char)s[1];
+      return ((c1 & 0xC0) == 0x80) ? 2 : -1;
+    }
+  if (c < 0xF0)
+    {
+      if (n < 3)
+	return -2;
+      c1 = (unsigned char)s[1];
+      c2 = (unsigned char)s[2];
+      if ((c1 & 0xC0) != 0x80 || (c2 & 0xC0) != 0x80)
+	return -1;
+      if ((c == 0xE0 && c1 < 0xA0) || (c == 0xED && c1 >= 0xA0))
+	return -1;
+      return 3;
+    }
+  if (c < 0xF5)
+    {
+      if (n < 4)
+	return -2;
+      c1 = (unsigned char)s[1];
+      c2 = (unsigned char)s[2];
+      c3 = (unsigned char)s[3];
+      if ((c1 & 0xC0) != 0x80 || (c2 & 0xC0) != 0x80 || (c3 & 0xC0) != 0x80)
+	return -1;
+      if ((c == 0xF0 && c1 < 0x90) || (c == 0xF4 && c1 >= 0x90))
+	return -1;
+      return 4;
+    }
+  return -1;
+}
+#endif /* HANDLE_MULTIBYTE */
 
 /* Convert STRING by expanding the escape sequences specified by the
    ANSI C standard.  If SAWC is non-null, recognize `\c' and use that
@@ -273,13 +365,34 @@ ansic_shouldquote (string)
 {
   const char *s;
   unsigned char c;
+#if defined (HANDLE_MULTIBYTE)
+  int l;
+  int utf8locale;
+#endif
 
   if (string == 0)
     return 0;
 
-  for (s = string; c = *s; s++)
-    if (ISPRINT (c) == 0)
-      return 1;
+#if defined (HANDLE_MULTIBYTE)
+  utf8locale = st_is_utf8_locale ();
+#endif
+
+  for (s = string; c = *s; )
+    {
+#if defined (HANDLE_MULTIBYTE)
+      if (utf8locale && (c & 0x80))
+	{
+	  l = st_utf8_mblen (s, strlen (s));
+	  if (l < 0)
+	    return 1;
+	  s += l;
+	  continue;
+	}
+#endif
+      if (ISPRINT (c) == 0)
+	return 1;
+      s++;
+    }
 
   return 0;
 }

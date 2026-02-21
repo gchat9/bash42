@@ -174,7 +174,7 @@ LTV_AGE=3
 
 .y.c:
 	$(YACC) $(YFLAGS) --output $@ $<
-	rm -f $*.h
+	@if test -f y.tab.h; then mv -f y.tab.h $*.h; fi
 
 bindtextdom.lo: $(srcdir)/bindtextdom.c
 	$(LIBTOOL) --mode=compile $(COMPILE) $(srcdir)/bindtextdom.c

@@ -70,7 +70,7 @@ $END
 #include <glob/strmatch.h>
 #include <glob/glob.h>
 
-#ifndef errno
+#if !defined (errno) && !defined (HAVE_ERRNO_H)
 extern int errno;
 #endif
 

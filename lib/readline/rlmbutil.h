@@ -68,6 +68,10 @@
 /* Make sure MB_LEN_MAX is at least 16 on systems that claim to be able to
    handle multibyte chars (some systems define MB_LEN_MAX as 1) */
 #ifdef HANDLE_MULTIBYTE
+
+extern int _rl_utf8locale;
+
+#define RL_MBCHARS_ENABLED	((rl_byte_oriented == 0) && (MB_CUR_MAX > 1 || _rl_utf8locale))
 #  include <limits.h>
 #  if defined(MB_LEN_MAX) && (MB_LEN_MAX < 16)
 #    undef MB_LEN_MAX
@@ -104,6 +108,7 @@ extern int _rl_read_mbchar PARAMS((char *, int));
 extern int _rl_read_mbstring PARAMS((int, char *, int));
 
 extern int _rl_is_mbchar_matched PARAMS((char *, int, int, char *, int));
+extern int utf8_mblen PARAMS((const char *, size_t));
 
 extern wchar_t _rl_char_value PARAMS((char *, int));
 extern int _rl_walphabetic PARAMS((wchar_t));
@@ -112,11 +117,11 @@ extern int _rl_walphabetic PARAMS((wchar_t));
 #define _rl_to_wlower(wc)	(iswupper (wc) ? towlower (wc) : (wc))
 
 #define MB_NEXTCHAR(b,s,c,f) \
-	((MB_CUR_MAX > 1 && rl_byte_oriented == 0) \
+	((RL_MBCHARS_ENABLED) \
 		? _rl_find_next_mbchar ((b), (s), (c), (f)) \
 		: ((s) + (c)))
 #define MB_PREVCHAR(b,s,f) \
-	((MB_CUR_MAX > 1 && rl_byte_oriented == 0) \
+	((RL_MBCHARS_ENABLED) \
 		? _rl_find_prev_mbchar ((b), (s), (f)) \
 		: ((s) - 1))
 
@@ -143,6 +148,8 @@ extern int _rl_walphabetic PARAMS((wchar_t));
 
 #define MB_NEXTCHAR(b,s,c,f)	((s) + (c))
 #define MB_PREVCHAR(b,s,f)	((s) - 1)
+
+#define RL_MBCHARS_ENABLED	0
 
 #define MB_INVALIDCH(x)		(0)
 #define MB_NULLWCH(x)		(0)

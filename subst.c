@@ -62,7 +62,7 @@
 #include <tilde/tilde.h>
 #include <glob/strmatch.h>
 
-#if !defined (errno)
+#if !defined (errno) && !defined (HAVE_ERRNO_H)
 extern int errno;
 #endif /* !errno */
 

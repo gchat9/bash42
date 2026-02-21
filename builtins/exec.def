@@ -70,7 +70,7 @@ $END
 #include "bashgetopt.h"
 
 /* Not all systems declare ERRNO in errno.h... and some systems #define it! */
-#if !defined (errno)
+#if !defined (errno) && !defined (HAVE_ERRNO_H)
 extern int errno;
 #endif /* !errno */
 

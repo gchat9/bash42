@@ -72,6 +72,105 @@ int rl_byte_oriented = 1;
 
 #if defined(HANDLE_MULTIBYTE)
 
+int
+utf8_mblen (s, n)
+     const char *s;
+     size_t n;
+{
+  unsigned char c, c1, c2, c3;
+
+  if (s == 0)
+    return 0;
+  if (n == 0)
+    return -1;
+
+  c = (unsigned char)*s;
+  if (c < 0x80)
+    return (c != 0);
+  if (c < 0xC2)
+    return -1;
+
+  if (c < 0xE0)
+    {
+      if (n < 2)
+	return -2;
+      c1 = (unsigned char)s[1];
+      return (((c1 ^ 0x80) < 0x40) ? 2 : -1);
+    }
+  if (c < 0xF0)
+    {
+      if (n < 3)
+	return -2;
+      c1 = (unsigned char)s[1];
+      c2 = (unsigned char)s[2];
+      if ((c1 ^ 0x80) >= 0x40 || (c2 ^ 0x80) >= 0x40)
+	return -1;
+      if ((c == 0xE0 && c1 < 0xA0) || (c == 0xED && c1 >= 0xA0))
+	return -1;
+      return 3;
+    }
+  if (c < 0xF5)
+    {
+      if (n < 4)
+	return -2;
+      c1 = (unsigned char)s[1];
+      c2 = (unsigned char)s[2];
+      c3 = (unsigned char)s[3];
+      if ((c1 ^ 0x80) >= 0x40 || (c2 ^ 0x80) >= 0x40 || (c3 ^ 0x80) >= 0x40)
+	return -1;
+      if ((c == 0xF0 && c1 < 0x90) || (c == 0xF4 && c1 >= 0x90))
+	return -1;
+      return 4;
+    }
+  return -1;
+}
+
+static size_t
+_rl_utf8_mbrtowc (wc, s, n)
+     wchar_t *wc;
+     const char *s;
+     size_t n;
+{
+  int l;
+  unsigned char c, c1, c2, c3;
+  unsigned int uc;
+
+  l = utf8_mblen (s, n);
+  if (l <= 0)
+    return (size_t)l;
+  if (wc == 0)
+    return (size_t)l;
+
+  c = (unsigned char)s[0];
+  if (l == 1)
+    uc = c;
+  else if (l == 2)
+    {
+      c1 = (unsigned char)s[1];
+      uc = ((unsigned int)(c & 0x1f) << 6) | (unsigned int)(c1 & 0x3f);
+    }
+  else if (l == 3)
+    {
+      c1 = (unsigned char)s[1];
+      c2 = (unsigned char)s[2];
+      uc = ((unsigned int)(c & 0x0f) << 12) |
+	   ((unsigned int)(c1 & 0x3f) << 6) |
+	   (unsigned int)(c2 & 0x3f);
+    }
+  else
+    {
+      c1 = (unsigned char)s[1];
+      c2 = (unsigned char)s[2];
+      c3 = (unsigned char)s[3];
+      uc = ((unsigned int)(c & 0x07) << 18) |
+	   ((unsigned int)(c1 & 0x3f) << 12) |
+	   ((unsigned int)(c2 & 0x3f) << 6) |
+	   (unsigned int)(c3 & 0x3f);
+    }
+  *wc = (wchar_t)uc;
+  return (size_t)l;
+}
+
 static int
 _rl_find_next_mbchar_internal (string, seed, count, find_non_zero)
      char *string;
@@ -102,7 +201,13 @@ _rl_find_next_mbchar_internal (string, seed, count, find_non_zero)
       len = strlen (string + point);
       if (len == 0)
 	break;
-      tmp = mbrtowc (&wc, string+point, len, &ps);
+      if (_rl_utf8locale)
+	{
+	  tmp = _rl_utf8_mbrtowc (&wc, string+point, len);
+	  memset (&ps, 0, sizeof (mbstate_t));
+	}
+      else
+	tmp = mbrtowc (&wc, string+point, len, &ps);
       if (MB_INVALIDCH ((size_t)tmp))
 	{
 	  /* invalid bytes. assume a byte represents a character */
@@ -129,7 +234,7 @@ _rl_find_next_mbchar_internal (string, seed, count, find_non_zero)
 	}
     }
 
-  if (find_non_zero)
+  if (find_non_zero && _rl_utf8locale == 0)
     {
       tmp = mbrtowc (&wc, string + point, strlen (string + point), &ps);
       while (MB_NULLWCH (tmp) == 0 && MB_INVALIDCH (tmp) == 0 && wcwidth (wc) == 0)
@@ -163,7 +268,13 @@ _rl_find_prev_mbchar_internal (string, seed, find_non_zero)
   prev = non_zero_prev = point = 0;
   while (point < seed)
     {
-      tmp = mbrtowc (&wc, string + point, length - point, &ps);
+      if (_rl_utf8locale)
+	{
+	  tmp = _rl_utf8_mbrtowc (&wc, string + point, length - point);
+	  memset (&ps, 0, sizeof (mbstate_t));
+	}
+      else
+	tmp = mbrtowc (&wc, string + point, length - point, &ps);
       if (MB_INVALIDCH ((size_t)tmp))
 	{
 	  /* in this case, bytes are invalid or shorted to compose
@@ -209,7 +320,10 @@ _rl_get_char_len (src, ps)
 {
   size_t tmp;
 
-  tmp = mbrlen((const char *)src, (size_t)strlen (src), ps);
+  if (_rl_utf8locale)
+    tmp = (size_t)utf8_mblen ((const char *)src, (size_t)strlen (src));
+  else
+    tmp = mbrlen((const char *)src, (size_t)strlen (src), ps);
   if (tmp == (size_t)(-2))
     {
       /* shorted to compose multibyte char */
@@ -280,7 +394,10 @@ _rl_adjust_point(string, point, ps)
   
   while (pos < point)
     {
-      tmp = mbrlen (string + pos, length - pos, ps);
+      if (_rl_utf8locale)
+	tmp = (size_t)utf8_mblen (string + pos, length - pos);
+      else
+	tmp = mbrlen (string + pos, length - pos, ps);
       if (MB_INVALIDCH ((size_t)tmp))
 	{
 	  /* in this case, bytes are invalid or shorted to compose
@@ -329,13 +446,18 @@ _rl_char_value (buf, ind)
   mbstate_t ps;
   int l;
 
-  if (MB_LEN_MAX == 1 || rl_byte_oriented)
+  if (RL_MBCHARS_ENABLED == 0)
     return ((wchar_t) buf[ind]);
   l = strlen (buf);
   if (ind >= l - 1)
     return ((wchar_t) buf[ind]);
-  memset (&ps, 0, sizeof (mbstate_t));
-  tmp = mbrtowc (&wc, buf + ind, l - ind, &ps);
+  if (_rl_utf8locale)
+    tmp = _rl_utf8_mbrtowc (&wc, buf + ind, l - ind);
+  else
+    {
+      memset (&ps, 0, sizeof (mbstate_t));
+      tmp = mbrtowc (&wc, buf + ind, l - ind, &ps);
+    }
   if (MB_INVALIDCH (tmp) || MB_NULLWCH (tmp))  
     return ((wchar_t) buf[ind]);
   return wc;

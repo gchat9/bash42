@@ -6,8 +6,6 @@ Makefile
 config.h
 config.log
 config.status
-y.tab.c
-y.tab.h
 lib/intl/charset.alias
 lib/intl/libgnuintl.h
 lib/intl/ref-add.sed

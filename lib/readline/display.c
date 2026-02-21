@@ -1019,8 +1019,9 @@ rl_redisplay ()
      otherwise, let long lines display in a single terminal line, and
      horizontally scroll it. */
 
-  if (_rl_horizontal_scroll_mode == 0 && _rl_term_up && *_rl_term_up)
-    {
+  /* Local fix: force multi-line mode if horizontal scroll mode is disabled, even if _rl_term_up is missing */
+  if (_rl_horizontal_scroll_mode == 0) {
+
       int nleft, pos, changed_screen_line, tx;
 
       if (!rl_display_fixed || forced_display)

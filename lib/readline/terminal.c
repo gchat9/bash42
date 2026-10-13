@@ -492,6 +492,20 @@ _rl_init_terminal_io (terminal_name)
       _rl_term_forward_char = (char *)NULL;
       _rl_terminal_can_insert = term_has_meta = 0;
 
+      /* Dietlibc fallback: use ANSI sequences for cursor addressing */
+      _rl_term_up           = "\033[A";
+      _rl_term_clreol       = "\033[K";
+      _rl_term_clrpag       = "\033[2J\033[H";
+      _rl_term_forward_char = "\033[C";
+
+      /* Dietlibc fallback: recognize some common ANSI & VT220 keys */
+      rl_bind_keyseq_if_unbound ("\033[1~", rl_beg_of_line);
+      rl_bind_keyseq_if_unbound ("\033[4~", rl_end_of_line);
+      rl_bind_keyseq_if_unbound ("\033[3~", rl_delete);
+      rl_bind_keyseq_if_unbound ("\033[1;5C", rl_forward_word);
+      rl_bind_keyseq_if_unbound ("\033[1;5D", rl_backward_word);
+      rl_bind_keyseq_if_unbound ("\033[P", rl_delete);
+
       /* Reasonable defaults for tgoto().  Readline currently only uses
          tgoto if _rl_term_IC or _rl_term_DC is defined, but just in case we
          change that later... */

@@ -9,7 +9,9 @@ needed only by dietlibc, so a glibc build is not affected.
 Building
 --------
 
-    CC="diet gcc" ./configure --disable-nls --without-bash-malloc \
+    CC="diet gcc" ./configure --disable-nls --without-bash-malloc
+        --disable-help-builtin --disable-single-help-strings \
+        --disable-disabled-builtins --disable-debugger \
         CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-stack-protector -fcf-protection=none -fno-pie" \
         LDFLAGS="-Wl,--gc-sections -no-pie"
     make

@@ -458,7 +458,14 @@ _rl_init_terminal_io (terminal_name)
       FREE (term_buffer);
       buffer = term_buffer = term_string_buffer = (char *)NULL;
 
-      _rl_term_autowrap = 0;	/* used by _rl_get_screen_size */
+      /* No termcap/terminfo entry: the fallback below emits VT100/xterm
+	 sequences, and those terminals have the "am" and "xn" capabilities
+	 (automatic margins, eat-newline glitch), so assume autowrap for any
+	 real terminal.  With autowrap 0, readline writes an explicit CR LF at
+	 every margin, which terminal emulators record as a real newline when
+	 the text is copied, and it also reserves a spare column.  Must be set
+	 before _rl_get_screen_size, which reads it. */
+      _rl_term_autowrap = (strcmp (term, "dumb") != 0);
 
       /* Allow calling application to set default height and width, using
 	 rl_set_screen_size */

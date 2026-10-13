@@ -373,3 +373,7 @@ _rl_find_prev_mbchar (string, seed, flags)
   return ((seed == 0) ? seed : seed - 1);
 #endif
 }
+
+#if defined (__dietlibc__)
+#  include "my_wcwidth.c"
+#endif

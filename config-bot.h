@@ -205,3 +205,10 @@
    the declaration. */
 #  define errno errno
 #endif
+
+#if defined (__dietlibc__)
+/* dietlibc's wcwidth() is a stub.  Use the approximate replacement in
+   lib/readline/my_wcwidth.c instead; see README.dietlibc for its limits. */
+#  include "include/my_wcwidth.h"
+#  define wcwidth(wc) my_wcwidth(wc)
+#endif

@@ -299,3 +299,13 @@ getmaxchild ()
 
   return (maxchild);
 }
+
+#if defined (__dietlibc__)
+/* dietlibc has no wctob().  Only ASCII characters map to a single byte in
+   the UTF-8 locales bash runs in, which is all lib/glob/smatch.c needs. */
+int
+wctob (wint_t wc)
+{
+  return (wc >= 0 && wc <= 0x7F) ? (int)wc : EOF;
+}
+#endif

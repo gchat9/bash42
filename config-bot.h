@@ -197,3 +197,11 @@
 
 /* If you don't want bash to provide a default mail file to check. */
 /* #undef DEFAULT_MAIL_DIRECTORY */
+
+#if defined (__dietlibc__)
+/* dietlibc declares errno as "extern __thread int errno;".  Many bash sources
+   declare "extern int errno;" under "#if !defined (errno)", which conflicts
+   with that.  Defining errno as a macro (to itself) makes those guards skip
+   the declaration. */
+#  define errno errno
+#endif

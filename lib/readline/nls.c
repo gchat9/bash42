@@ -116,6 +116,15 @@ _rl_init_eightbit ()
     lspec = "";
   t = setlocale (LC_CTYPE, lspec);
 
+#if defined (__dietlibc__)
+  /* dietlibc's setlocale() always fails.  Use the LC_CTYPE/LANG name when it
+     names a UTF-8 locale, so multibyte input is not treated as the C locale
+     (which turns bytes >= 0x80 into meta characters). */
+  if (t == 0 && lspec && (strstr (lspec, "UTF-8") || strstr (lspec, "utf-8") ||
+			  strstr (lspec, "UTF8") || strstr (lspec, "utf8")))
+    t = lspec;
+#endif
+
   if (t && *t && (t[0] != 'C' || t[1]) && (STREQ (t, "POSIX") == 0))
     {
       _rl_meta_flag = 1;

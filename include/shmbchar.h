@@ -158,6 +158,11 @@
 #include <wchar.h>
 #include <wctype.h>
 
+#if defined (HANDLE_MULTIBYTE) && !defined (HAVE_WCSWIDTH)
+/* lib/sh/wcswidth.c supplies this when the C library lacks wcswidth(). */
+extern int wcswidth (const wchar_t *, size_t);
+#endif
+
 #define MBCHAR_BUF_SIZE 24
 
 struct mbchar

@@ -40,6 +40,13 @@ extern int errno;
 #if !defined (_POSIX_VERSION) && defined (HAVE_SYS_FILE_H)
 #  include <sys/file.h>
 #endif /* !_POSIX_VERSION */
+#if defined (HAVE_UNISTD_H)
+#  include <unistd.h>	/* faccessat() */
+#endif
+#if defined (__dietlibc__)
+/* dietlibc declares faccessat() only under _ATFILE_SOURCE. */
+extern int faccessat (int, const char *, int, int);
+#endif
 #include "posixstat.h"
 #include "filecntl.h"
 

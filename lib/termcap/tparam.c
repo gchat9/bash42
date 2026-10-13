@@ -21,6 +21,9 @@
 /* Emacs config.h may rename various library functions such as malloc.  */
 #ifdef HAVE_CONFIG_H
 #include <config.h>
+#if defined (HAVE_UNISTD_H)
+#  include <unistd.h>	/* write() */
+#endif
 
 #ifdef HAVE_STDLIB_H 
 #  include <stdlib.h>

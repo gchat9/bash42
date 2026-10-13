@@ -309,3 +309,10 @@ wctob (wint_t wc)
   return (wc >= 0 && wc <= 0x7F) ? (int)wc : EOF;
 }
 #endif
+
+#if defined (__dietlibc__)
+/* dietlibc's wcswidth() ignores double-width characters.  configure leaves
+   wcswidth.c out of the build because it found a wcswidth(), so compile
+   bash's version here instead; it uses the wcwidth() replacement. */
+#  include "wcswidth.c"
+#endif

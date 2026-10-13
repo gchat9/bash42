@@ -212,3 +212,9 @@
 #  include "include/my_wcwidth.h"
 #  define wcwidth(wc) my_wcwidth(wc)
 #endif
+
+#if defined (__dietlibc__)
+/* dietlibc's wcswidth() ignores combining and double-width characters, so
+   use lib/sh/wcswidth.c, which is built on the wcwidth() replacement above. */
+#  undef HAVE_WCSWIDTH
+#endif

@@ -1,0 +1,139 @@
+bash for dietlibc
+=================
+
+This tree builds bash-4.2.53 with dietlibc, a small static C library,
+producing a small static binary.  The dietlibc changes are the commits
+on top of the 4.2.53 base.  They are guarded by __dietlibc__, or they are
+needed only by dietlibc, so a glibc build is not affected.
+
+Building
+--------
+
+    CC="diet gcc" ./configure --disable-nls --without-bash-malloc \
+        CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-stack-protector -fcf-protection=none -fno-pie" \
+        LDFLAGS="-Wl,--gc-sections -no-pie"
+    make
+    strip bash
+
+- --disable-nls is required.  Without it, lib/intl does not compile under
+  dietlibc, because its argz.h and mempcpy() declarations conflict.  NLS
+  could not work anyway: dietlibc's setlocale() always fails, so no message
+  catalog is selected.
+- --without-bash-malloc uses dietlibc's malloc, which is smaller.
+- The Makefiles do not track config-bot.h as a dependency.  Run
+  "make distclean" before rebuilding after changing it.
+- -flto (in CFLAGS and LDFLAGS) saves about 10 KB of text section.  It
+  builds and runs, but it has had less testing than the default flags.
+
+Changes
+-------
+
+- config-bot.h defines errno as a macro under __dietlibc__.  dietlibc
+  declares errno as thread-local, which conflicts with the plain
+  "extern int errno;" that bash declares in many files.  The existing
+  "#if !defined (errno)" guards then skip those declarations.
+- lib/sh/oslib.c provides wctob(), which dietlibc lacks, and includes
+  lib/sh/wcswidth.c.  configure leaves wcswidth.c out of the build when it
+  finds a wcswidth(), so it is included here instead.
+- lib/readline/terminal.c: dietlibc has no terminfo or termcap support, so
+  tgetent() always fails.  readline then uses VT100/xterm sequences for
+  cursor movement, clear-to-EOL and clear-screen, and binds the common
+  ANSI/VT220 editing keys.  It also assumes autowrap, except for TERM=dumb.
+  Without this, a wrapped line is followed by an explicit CR LF, and copying
+  it from the terminal inserts extra newlines.
+- lib/readline/my_wcwidth.c and include/my_wcwidth.h provide wcwidth().  See
+  "Limitations".
+- lib/readline/nls.c: if setlocale() fails and LC_CTYPE or LANG names a
+  UTF-8 locale, readline uses its UTF-8 setup.  Without this, readline treats
+  the session as the C locale and turns bytes >= 0x80 into meta characters.
+- locale.c does not warn when setlocale() fails, which it always does under
+  dietlibc.
+- config-bot.h undefines HAVE_WCSWIDTH, so bash's own wcswidth() is used.
+  dietlibc's version gives the wrong width for double-width characters.
+- lib/sh/shmatch.c works around two regex gaps.  dietlibc's regex does not
+  implement POSIX character classes, so [[:alpha:]] never matches; the
+  classes are rewritten to ASCII ranges before regcomp().  It also leaves
+  re_nsub at 0, which hides every capture group from BASH_REMATCH, so the
+  groups are counted in the pattern instead.
+- lib/sh/eaccess.c and lib/termcap/tparam.c include unistd.h.  eaccess.c also
+  declares faccessat(), which dietlibc prototypes only under _ATFILE_SOURCE.
+
+Differences from a glibc build
+------------------------------
+
+Measured against a glibc build of the same source.  Where the two differ, the
+glibc build is the reference.
+
+Matching behavior, for the cases tested: line wrapping and copy-paste,
+cursor movement, deletion and emoji width (within the wcwidth limits below),
+UTF-8 input, and word motion over ASCII text.  The bash test suite gives the
+same results as a glibc build for most sections (see "Test results").
+
+Known differences:
+
+- Word motion (M-f, M-b) over accented letters can differ.  dietlibc's
+  iswalnum() treats non-ASCII letters as non-alphabetic, so "M-f" over
+  "ñandú" stops inside the word.
+- Case conversion of non-ASCII text is missing.  towupper() and towlower()
+  are stubs.
+- printf %q and other quoting of non-ASCII characters escape them as
+  $'...' sequences.  glibc leaves printable UTF-8 characters unquoted.
+- Regular expressions are byte-oriented.  In [[ ... =~ ... ]], "." matches
+  one byte, so an emoji does not match "^.$".  POSIX character classes are
+  ASCII-only.
+- printf %e and %E print nothing.  dietlibc's printf does not implement
+  them, even for a plain double.  %f and %g work.
+- Time zones: dietlibc ignores zone names from the zoneinfo database.
+  TZ=America/New_York gives GMT where glibc gives EDT.
+- The text of some strerror() messages differs (for example, "Bad file
+  descriptor" where glibc says "Bad file number").
+- The locale is not selected by setlocale().  The only locale effect is
+  UTF-8 detection from LC_CTYPE, LC_ALL or LANG, described above.
+- Messages are not translated (see --disable-nls).
+
+Limitations of the wcwidth() replacement
+----------------------------------------
+
+lib/readline/my_wcwidth.c holds compact tables of zero-width and
+double-width code point ranges.  The default build covers emoji, which are
+double-width, and the zero-width characters that emoji text uses: variation
+selectors, zero-width joiner and space, skin-tone modifiers, and common
+combining marks.  Two options add more ranges at compile time:
+
+- MY_WCWIDTH_CJK covers CJK, Hangul and fullwidth forms, and CJK extensions
+  in planes 2 and 3.  Without it, CJK characters count as one column each,
+  so the cursor drifts after them.
+- MY_WCWIDTH_ARABIC_HEBREW_THAI adds zero-width combining marks for those
+  scripts.
+
+Compared with the Unicode emoji data (the emoji package's fully-qualified
+Emoji_Presentation entries), the default table is approximate.  About 250
+code points in the emoji blocks are double-width here although they are
+text-presentation by default (for example U+1F321 and U+1F336).  About 40
+emoji are missing (for example U+1F004 and U+1F18E).  Exact tables would add a
+few hundred bytes of text; they are not included.
+
+Test results
+------------
+
+The bash test suite (tests/run-all) was run on a glibc build and on the
+recommended dietlibc build, and the diffs for each section were compared.
+The test machine did not have the en_US.UTF-8 locale that some tests use.
+
+- Same results as glibc: assoc, coproc, execscript, read, test, trap, and
+  cond (after the regex fix).
+- builtins: the glibc build fails only because it prints a locale warning
+  that the test does not expect.  The dietlibc build is silent and passes.
+- intl: with the locale missing, glibc falls back to the C locale and gets
+  the UTF-8 lines wrong.  dietlibc takes UTF-8 from the locale name, so those
+  lines match.  Its remaining failures are decimal separators, which need
+  locale data dietlibc does not have, and some Cyrillic string handling.  The
+  cause of the Cyrillic difference was not investigated.
+- printf: the %e and %E lines (see above), and the time zone lines.
+- redir and vredir: strerror() wording only.
+
+Measured sizes (text section, from size(1)), dietlibc: default flags 872,910;
+-Os 677,211; -Os with section gc and no bash malloc 551,606; the recommended
+build above 552,262 (599,496 bytes stripped).  glibc, dynamic, default
+options: 1,013,005.  Resident memory of a shell after "true; pmap -x $$":
+glibc 3368 KB RSS (244 KB dirty), dietlibc default build 832 KB (92 KB dirty).

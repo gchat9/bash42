@@ -541,6 +541,33 @@ read_octal (string)
    FOR_WHOM is the name of the caller for error printing.  */
 char *the_current_working_directory = (char *)NULL;
 
+#if defined (__dietlibc__)
+/* dietlibc's getcwd (0, 0) fails with EINVAL, so allocate the buffer here
+   and grow it while getcwd() reports ERANGE.  Returns a malloc'd string, or
+   NULL with errno set. */
+static char *
+getcwd_alloc ()
+{
+  size_t size;
+  char *buf;
+  int err;
+
+  for (size = 256; ; size *= 2)
+    {
+      buf = (char *)xmalloc (size);
+      if (getcwd (buf, size))
+	return buf;
+      err = errno;
+      free (buf);
+      if (err != ERANGE)
+	{
+	  errno = err;
+	  return ((char *)NULL);
+	}
+    }
+}
+#endif
+
 char *
 get_working_directory (for_whom)
      char *for_whom;
@@ -553,7 +580,9 @@ get_working_directory (for_whom)
 
   if (the_current_working_directory == 0)
     {
-#if defined (GETCWD_BROKEN)
+#if defined (__dietlibc__)
+      the_current_working_directory = getcwd_alloc ();
+#elif defined (GETCWD_BROKEN)
       the_current_working_directory = getcwd (0, PATH_MAX);
 #else
       the_current_working_directory = getcwd (0, 0);

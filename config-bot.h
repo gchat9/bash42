@@ -74,6 +74,15 @@
    #undef HAVE_GETCWD so the replacement in getcwd.c will be built.  We do
    not do this on Solaris, because their implementation of loopback mounts
    breaks the traditional file system assumptions that getcwd uses. */
+#if defined (__dietlibc__) && defined (GETCWD_BROKEN)
+/* configure marks getcwd() broken on dietlibc because getcwd (0, 0) fails
+   with EINVAL.  The real getcwd() is fine when given a buffer, and bash's
+   replacement in lib/sh/getcwd.c walks the directory tree comparing inode
+   numbers, which fails on bind mounts and overlay filesystems.  So keep
+   dietlibc's getcwd(); builtins/common.c supplies the buffer. */
+#  undef GETCWD_BROKEN
+#endif
+
 #if defined (HAVE_GETCWD) && defined (GETCWD_BROKEN) && !defined (SOLARIS)
 #  undef HAVE_GETCWD
 #endif

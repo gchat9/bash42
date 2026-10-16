@@ -9,7 +9,7 @@ needed only by dietlibc, so a glibc build is not affected.
 Building
 --------
 
-    CC="diet gcc" ./configure --disable-nls --without-bash-malloc
+    CC="diet gcc" ./configure --disable-nls --without-bash-malloc \
         --disable-help-builtin --disable-single-help-strings \
         --disable-disabled-builtins --disable-debugger \
         CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-stack-protector -fcf-protection=none -fno-pie" \
@@ -57,6 +57,15 @@ Changes
   classes are rewritten to ASCII ranges before regcomp().  It also leaves
   re_nsub at 0, which hides every capture group from BASH_REMATCH, so the
   groups are counted in the pattern instead.
+- getcwd: configure finds getcwd(0, 0) broken on dietlibc (it returns
+  EINVAL), so it sets GETCWD_BROKEN.  That makes bash build its own
+  getcwd() in lib/sh/getcwd.c, which finds the current directory by walking
+  the tree and comparing inode numbers.  The walk fails on bind mounts,
+  overlay filesystems and similar setups, where the kernel can still name
+  the directory, and it can fail with errno unset.  Under __dietlibc__,
+  config-bot.h clears GETCWD_BROKEN, and get_working_directory() allocates the
+  buffer for dietlibc's getcwd(), which calls the kernel.  glibc is not
+  affected.
 - lib/sh/eaccess.c and lib/termcap/tparam.c include unistd.h.  eaccess.c also
   declares faccessat(), which dietlibc prototypes only under _ATFILE_SOURCE.
 

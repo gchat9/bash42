@@ -48,6 +48,9 @@ Changes
 - lib/readline/nls.c: if setlocale() fails and LC_CTYPE or LANG names a
   UTF-8 locale, readline uses its UTF-8 setup.  Without this, readline treats
   the session as the C locale and turns bytes >= 0x80 into meta characters.
+- utf8mb.c and include/utf8mb.h provide UTF-8 mbrtowc(), wcrtomb(), mbrlen(),
+  mbsrtowcs() and the rest of the conversion functions, since dietlibc's
+  versions are all unusable stubs.
 - locale.c does not warn when setlocale() fails, which it always does under
   dietlibc.
 - config-bot.h undefines HAVE_WCSWIDTH, so bash's own wcswidth() is used.
@@ -98,8 +101,8 @@ Known differences:
   TZ=America/New_York gives GMT where glibc gives EDT.
 - The text of some strerror() messages differs (for example, "Bad file
   descriptor" where glibc says "Bad file number").
-- The locale is not selected by setlocale().  The only locale effect is
-  UTF-8 detection from LC_CTYPE, LC_ALL or LANG, described above.
+- The locale is not selected by setlocale().  Multibyte input is always
+  decoded as UTF-8 (see utf8mb.c), whatever LANG says.
 - Messages are not translated (see --disable-nls).
 
 Limitations of the wcwidth() replacement
@@ -112,8 +115,8 @@ selectors, zero-width joiner and space, skin-tone modifiers, and common
 combining marks.  Two options add more ranges at compile time:
 
 - MY_WCWIDTH_CJK covers CJK, Hangul and fullwidth forms, and CJK extensions
-  in planes 2 and 3.  Without it, CJK characters count as one column each,
-  so the cursor drifts after them.
+  in planes 2 and 3.  config-bot.h turns it on for dietlibc builds, because
+  the terminals bash runs under draw those characters two columns wide.
 - MY_WCWIDTH_ARABIC_HEBREW_THAI adds zero-width combining marks for those
   scripts.
 

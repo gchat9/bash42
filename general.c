@@ -47,6 +47,13 @@
 extern int errno;
 #endif /* !errno */
 
+/* dietlibc's multibyte functions are a Latin-1 stub; these UTF-8 versions
+   replace them (see config-bot.h).  Defined here, in the main program, so
+   that readline and the libraries can use them too. */
+#if defined (__dietlibc__)
+#  include "utf8mb.c"
+#endif
+
 extern int expand_aliases;
 extern int interactive_comments;
 extern int check_hashed_filenames;

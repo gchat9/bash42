@@ -217,7 +217,10 @@
 
 #if defined (__dietlibc__)
 /* dietlibc's wcwidth() is a stub.  Use the approximate replacement in
-   lib/readline/my_wcwidth.c instead; see README.dietlibc for its limits. */
+   lib/readline/my_wcwidth.c instead; see README.dietlibc for its limits.
+   CJK and fullwidth characters are double-width on the terminals bash runs
+   under (xtmux among them), so the replacement must count them that way too. */
+#  define MY_WCWIDTH_CJK
 #  include "include/my_wcwidth.h"
 #  define wcwidth(wc) my_wcwidth(wc)
 #endif
@@ -226,4 +229,24 @@
 /* dietlibc's wcswidth() ignores combining and double-width characters, so
    use lib/sh/wcswidth.c, which is built on the wcwidth() replacement above. */
 #  undef HAVE_WCSWIDTH
+#endif
+
+#if defined (__dietlibc__)
+/* dietlibc's mbrtowc() and friends decode each byte of a UTF-8 sequence as a
+   separate Latin-1 character, though MB_CUR_MAX says multibyte is in use, so
+   "é" becomes two one-column characters and line editing breaks.  Route the
+   conversion functions to the UTF-8 versions in utf8mb.c (included from
+   general.c).  See include/utf8mb.h. */
+#  include "include/utf8mb.h"
+#  define mbrtowc(pwc, s, n, ps)  utf8_mbrtowc (pwc, s, n, ps)
+#  define mbrlen(s, n, ps)        utf8_mbrlen (s, n, ps)
+#  define wcrtomb(s, wc, ps)      utf8_wcrtomb (s, wc, ps)
+#  define mbsrtowcs(d, s, n, ps)  utf8_mbsrtowcs (d, s, n, ps)
+#  define wcsrtombs(d, s, n, ps)  utf8_wcsrtombs (d, s, n, ps)
+#  define mbstowcs(d, s, n)       utf8_mbstowcs (d, s, n)
+#  define wcstombs(d, s, n)       utf8_wcstombs (d, s, n)
+#  define mblen(s, n)             utf8_mblen (s, n)
+#  define mbtowc(pwc, s, n)       utf8_mbtowc (pwc, s, n)
+#  define wctomb(s, wc)           utf8_wctomb (s, wc)
+#  define mbsinit(ps)             utf8_mbsinit (ps)
 #endif
